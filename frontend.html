@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>ArtSense</title>
+    <style>
+      html, body {
+        overflow: hidden,
+      }
+    </style>
+
+  </head>
+  
+  <body>
+
+    <div class="js-container"></div>
+
+    <script src="https://unpkg.com/supersimpledev/react.js"></script>
+    <script src="https://unpkg.com/supersimpledev/react-dom.js"></script>
+
+    <script src="https://unpkg.com/supersimpledev/babel.js"></script>
+    <script type="text/babel">
+    
+    function FileDrop({ onResults }) {
+      const uploadRef = React.useRef(null)
+
+      const [file,setFile] = React.useState(null)
+
+      const [isDragOver,setIsDragOver] = React.useState(false)
+
+      const [url, setUrl] = React.useState(null)
+
+      const handleClick = () => {
+        uploadRef.current.click()
+      }
+
+      const handleChange = (e)=> {
+        const f = uploadRef.current.files[0];
+        if (!f) return;
+
+        setFile(f);
+        const objectURL = URL.createObjectURL(f);
+        setUrl(objectURL);
+
+        const reader = new FileReader();
+        reader.onload = () => {
+        localStorage.setItem("artUrl", reader.result);
+        };
+        reader.readAsDataURL(f);
+      };
+
+      const handleDragOver = (e)=> {
+
+        e.preventDefault()
+        console.log('File dragging over')
+        setIsDragOver(true)
+
+      }
+
+      const handleDrop = (e)=> {
+
+        e.preventDefault();
+        const f = e.dataTransfer.files[0];
+        if (!f) return;
+
+        setFile(f);
+        const objectURL = URL.createObjectURL(f);
+        setUrl(objectURL);
+
+        const reader = new FileReader();
+        reader.onload = () => {
+        localStorage.setItem("artUrl", reader.result);
+        };
+      reader.readAsDataURL(f);
+
+      setIsDragOver(false);
+
+      }
+
+
+      async function sendToBackend() {
+        if(!file) {
+          alert("Please upload an image");
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+          const response = await fetch("http://localhost:8000/process-image", {
+            method: "POST",
+            body: formData,
+            cache: "no-store"
+          });
+
+          const data = await response.json();
+          onResults(data);
+        } catch (err) {
+          console.error("Error sending image to backend", err);
+        }
+      }
+
+      return (
+        <div
+        style={{
+            backgroundColor: '#3d1852',
+            backgroundImage: 'linear-gradient(331deg,rgba(61, 24, 82, 1) 0%, rgba(124, 68, 158, 1) 48%, rgba(61, 24, 82, 1) 100%)',
+            backgroundSize: 'cover',
+
+            width: '100vw',
+            height: '100vh',
+
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+            margin: 0
+
+        }}
+        >   
+
+          <img src="sparkleIcon.png" style={{width: '120px', height: '80px'}}></img>
+
+          <h1 style={{
+            fontFamily:'Arial', 
+            fontWeight:'normal', 
+            color:'#cf428d',
+            background: 'linear-gradient(90deg,rgba(207, 66, 141, 1) 0%, rgba(232, 114, 143, 1) 64%, rgba(212, 133, 230, 1) 93%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            marginBottom: '100px',
+            fontSize: '50px'
+          }}>
+          ArtSense AI
+          </h1>
+
+          <div
+            style={{
+                width:'50%',
+                display:'flex', 
+                flexDirection: 'column',
+                justifyContent:'center',
+                alignItems:'center',
+                overflow:'hidden',
+                background:'#482E63',
+                cursor:'pointer',
+                minHeight:'350px',
+                opacity: isDragOver ? 0.5 : 0.8,
+                position: 'relative',
+                border: '2.5px dotted #7A5191',
+                borderRadius: '5px',
+                outline: '30px solid #331347'
+
+            }}
+
+            onClick={handleClick}
+
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            onDragLeave={()=>setIsDragOver(false)}
+          >
+            <input ref={uploadRef} type="file" style={{display:'none'}} onChange={handleChange}
+/>
+            <img src="uploadIcon.png" style={{width: '65px', height: '70px'}}></img>
+            <h2 style ={{fontFamily:'Tahoma', fontWeight:'normal', color:'#FFFFFF', letterSpacing: '1px'}}>Drop your artwork here</h2>
+            <h3 style ={{fontFamily:'Tahoma', fontWeight:'normal', color:'#ADADAD'}}>or click to browse</h3>
+            {file && <img src={url} style={{width: '100%', position: 'absolute', height: '100%', margin: 0, zIndex:-1}}>
+
+            </img>}
+          </div>
+
+          <p style ={{fontFamily:'Tahoma', fontWeight:'normal', textAlign: 'center', marginTop: '40px', color:'white'}}>{file&&file.name}</p>
+
+          <button
+            onClick={sendToBackend}
+            style={{
+              marginTop:"30px",
+              padding: "12px 24px",
+              fontFamily: "Tahoma",
+              fontSize: "16px",
+              color: "white",
+              background: "linear-gradient(90deg,rgba(0, 166, 237, 1) 21%, rgba(39, 230, 137, 1) 91%)",
+              border: "none",
+              borderRadius: "6px",
+              cursor: "pointer",
+              opacity: file ? 1 : 0.4
+            }}
+            disabled={!file}
+            >
+            Process Image
+            </button>
+        </div>
+        
+      )
+    }
+       
+    function App() {
+      const [page, setPage] = React.useState("upload");
+      const [results, setResults] = React.useState([]);
+      const [attributes, setAttributes] = React.useState([]);
+
+
+      return (
+        <>
+        {page === "upload" && (
+          <FileDrop
+            onResults={(data) => {
+
+              const unique = [];
+              const seen = new Set();
+
+              for (const item of data.results) {
+                if (!seen.has(item.artist)) {
+                  unique.push(item);
+                  seen.add(item.artist);
+                }
+              }
+
+              const top1 = unique[0];
+              const next3 = unique.slice(1, 3);
+
+              setResults({ top1, next3 });
+              setAttributes(data.shared_attributes);
+
+              setPage("results");
+            }}
+          />
+        )}
+
+        {page === "results" && (
+          <ResultsPage
+            results ={results}
+            attributes={attributes}
+            goBack={() => setPage("upload")}
+            />  
+          )}
+        </>
+      );
+    }
+    
+    function ResultsPage({ results, attributes, goBack }) {
+      const savedURL = localStorage.getItem("artUrl");
+
+      const { top1, next3 } = results;
+
+      return (
+        <div
+          style={{
+            backgroundColor: '#3d1852',
+            backgroundImage: 'linear-gradient(331deg,rgba(61, 24, 82, 1) 0%, rgba(124, 68, 158, 1) 48%, rgba(61, 24, 82, 1) 100%)',
+            backgroundSize: 'cover',
+
+            width: '100vw',
+            height: '200vh',
+            flexDirection: 'column',
+            display: 'flex',
+            alignItems: 'center',
+          }}
+        >
+
+        <div
+          style={{
+                width:'30%',
+                display:'flex', 
+                flexDirection: 'column',
+                alignItems:'center',
+                overflow:'hidden',
+                background:'#331347',
+                minHeight:'300px',
+                marginTop: '50px',
+                borderRadius: '8px',
+                position: 'relative'
+          }}
+        >  
+          <h1 style={{
+            fontFamily:'Arial', 
+            fontWeight:'normal', 
+            color:'white',
+            fontSize: '20px'
+            }}>
+            Your Artwork
+          </h1>
+          {savedURL && (
+            <img src={savedURL} style={{width: '80%', position: 'absolute', height: '80%', marginTop: '50px'}}/>
+          )
+        }
+        </div>
+
+        <h2
+          style={{
+            fontFamily:'Arial',
+            fontWeight:'normal',
+            color:'white',
+            fontSize:'30px',
+            marginTop: '70px'
+          }}>
+        Your Top Match 
+        </h2>
+
+        <div
+          style={{
+                width:'60%',
+                display:'flex', 
+                flexDirection: 'row',
+                justifyContent: 'flex-start',
+                alignItems:'center',
+                overflow:'hidden',
+                background:'#331347',
+                minHeight:'200px',
+                borderRadius: '8px',
+                position: 'relative'
+          }}
+        >  
+          {top1 && (
+            <>
+              <img
+                src={`http://localhost:8000${top1.image_path}`}  
+                style={{
+                width: '40%',
+                borderRadius: '10px',
+                marginTop: '20px',
+                marginLeft: '20px',
+                marginBottom: '20px',
+                marginRight: '30px'
+                }}
+              />
+
+              <div style={{color:'white', fontFamily:'Arial'}}>
+                <p
+                style={{
+                  fontSize: '50px',
+                  bottomMargin: '10px'
+                }}
+                ><strong>Artist: </strong>{top1.artist}</p>
+                <p
+                style={{
+                  fontSize: '30px'
+                }}
+                ><strong>Similarity Score: </strong>{(top1.similarity * 100).toFixed(2)}%</p>
+
+                <div style={{
+                  width: '350px',
+                  height: '12px',
+                  backgroundColor: '#663a80',
+                  borderRadius: '6px',
+                  overflow: 'hidden',
+                  marginTop: '10px'
+              }}>
+                <div style={{
+                  width: `${top1.similarity * 100}%`,
+                  height: '100%',
+                  background: 'linear-gradient(90deg, #00A6ED 0%, #27E689 100%)'
+                }} />
+              </div>
+
+              <div style={{ marginTop: "20px", color: "white" }}>
+                <h3>Shared Visual Attributes</h3>
+                <ul>
+                  {attributes.map((attr, index) => (
+                  <li key={index}>{attr}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            </>
+          )}
+        </div>
+
+ <h2 style={{
+  color: 'white',
+  marginTop: '60px',
+  fontFamily: 'Arial',
+  fontWeight: 'normal'
+}}>
+  Other Similar Artists
+</h2>
+
+<div
+  style={{
+    width: '60%',
+    display: 'flex',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: '20px'
+  }}
+>
+  {next3.map((artistObj, i) => (
+    <div
+      key={i}
+      style={{
+        width: '48%',
+        background: '#331347',
+        borderRadius: '8px',
+        padding: '15px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        color: 'white',
+        minHeight: '280px'
+      }}
+    >
+      <img
+        src={`http://localhost:8000${artistObj.image_path}`}
+        style={{
+          width: '100%',
+          height: '180px',
+          objectFit: 'cover',
+          borderRadius: '8px'
+        }}
+      />
+      
+      <p style={{ marginTop:'10px', fontSize:'18px', fontFamily: 'Arial' }}>
+        <strong>Artist:</strong> {artistObj.artist}
+      </p>
+      
+      <p style={{ fontSize:'14px',  fontFamily: 'Arial' }}>
+        <strong>Similarity:</strong> {(artistObj.similarity * 100).toFixed(2)}%
+      </p>
+
+      <div style={{
+        width: '80%',
+        height: '10px',
+        backgroundColor: '#663a80',
+        borderRadius: '6px',
+        overflow:'hidden',
+        marginTop:'8px'
+      }}>
+        <div style={{
+          width: `${artistObj.similarity * 100}%`,
+          height:'100%',
+          background:'linear-gradient(90deg, #00A6ED 0%, #27E689 100%)'
+        }} />
+        </div>
+      </div>
+      ))}
+      </div>
+
+        <button 
+        style={{
+          marginTop:"30px",
+          padding: "12px 24px",
+          fontFamily: "Tahoma",
+          fontSize: "16px",
+          color: "white",
+          background: "linear-gradient(90deg,rgba(0, 166, 237, 1) 21%, rgba(39, 230, 137, 1) 91%)",
+          border: "none",
+          borderRadius: "6px",
+          cursor: "pointer"
+        }}
+        onClick={goBack}>Process new image</button>
+      </div>
+
+      );
+    }
+
+      const container = document.querySelector('.js-container');
+      ReactDOM.createRoot(container).render(<App />);
+    </script>
+  </body>
+</html>
